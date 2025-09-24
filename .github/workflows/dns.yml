@@ -1,0 +1,47 @@
+name: Update DNS Records
+
+on:
+  push:
+    paths:
+      - "subdomains/*.json"
+
+jobs:
+  update-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install -y jq curl
+
+      - name: Process subdomains
+        run: |
+          for file in subdomains/*.json; do
+            subdomain=$(basename "$file" .json)
+            type=$(jq -r .type "$file")
+            target=$(jq -r .target "$file")
+
+            echo "Updating $subdomain.$DOMAIN to $target ($type)"
+
+            # Delete existing record if exists
+            record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$subdomain.$DOMAIN" \
+              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+              -H "Content-Type: application/json" | jq -r '.result[0].id')
+
+            if [ "$record_id" != "null" ]; then
+              curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$record_id" \
+                -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+                -H "Content-Type: application/json"
+            fi
+
+            # Create new record
+            curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"type\":\"$type\",\"name\":\"$subdomain\",\"content\":\"$target\",\"ttl\":3600,\"proxied\":false}"
+          done
+    env:
+      CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+      ZONE_ID: ${{ secrets.ZONE_ID }}
+      DOMAIN: kittycat.boo
