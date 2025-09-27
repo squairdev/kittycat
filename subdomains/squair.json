@@ -1,6 +1,9 @@
 {
-  "owner": "Squair",
-  "type": "CNAME",
-  "target": "squairdev.github.io",
-  "description": "My site"
+  "owner": {
+    "contact": "me@squair.xyz"
+  },
+  "info": {
+    "type": "CNAME",
+    "content": "squairdev.github.io"
+  }
 }

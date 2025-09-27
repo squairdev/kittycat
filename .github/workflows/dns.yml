@@ -1,4 +1,4 @@
-name: Update DNS Records
+name: Sync DNS Records
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - "subdomains/*.json"
 
 jobs:
-  update-dns:
+  sync-dns:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -17,29 +17,61 @@ jobs:
 
       - name: Process subdomains
         run: |
-          for file in subdomains/*.json; do
+          set -e
+
+          echo "Fetching current DNS records from Cloudflare..."
+          current_records=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=1000" \
+            -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+            -H "Content-Type: application/json")
+
+          # Build list of desired subdomains from JSON files
+          desired_subdomains=()
+            for file in subdomains/*.json; do
+            [ -e "$file" ] || continue
             subdomain=$(basename "$file" .json)
-            type=$(jq -r .type "$file")
-            target=$(jq -r .target "$file")
+            type=$(jq -r .info.type "$file")
+            target=$(jq -r .info.content "$file")
+            email=$(jq -r .owner.contact "$file")
+            fqdn="$subdomain.$DOMAIN"
 
-            echo "Updating $subdomain.$DOMAIN to $target ($type)"
+            desired_subdomains+=("$fqdn")
 
-            # Delete existing record if exists
-            record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$subdomain.$DOMAIN" \
-              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
-              -H "Content-Type: application/json" | jq -r '.result[0].id')
+            # Find existing record
+            record_id=$(echo "$current_records" | jq -r ".result[] | select(.name==\"$fqdn\") | .id")
+            record_content=$(echo "$current_records" | jq -r ".result[] | select(.name==\"$fqdn\") | .content")
+            record_type=$(echo "$current_records" | jq -r ".result[] | select(.name==\"$fqdn\") | .type")
 
-            if [ "$record_id" != "null" ]; then
-              curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$record_id" \
+            if [ -n "$record_id" ]; then
+              if [ "$record_content" != "$target" ] || [ "$record_type" != "$type" ]; then
+                echo "Updating $fqdn → $target ($type)"
+                curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$record_id" \
+                  -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  --data "{\"type\":\"$type\",\"name\":\"$subdomain\",\"content\":\"$target\",\"ttl\":3600,\"proxied\":false,\"comment\":\"$email\"}" > /dev/null
+              else
+                echo "No changes for $fqdn"
+              fi
+            else
+              echo "Creating $fqdn → $target ($type)"
+              curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
                 -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
-                -H "Content-Type: application/json"
+                -H "Content-Type: application/json" \
+                --data "{\"type\":\"$type\",\"name\":\"$subdomain\",\"content\":\"$target\",\"ttl\":3600,\"proxied\":false,\"comment\":\"$email\"}" > /dev/null
             fi
+          done
 
-            # Create new record
-            curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
-              -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
-              -H "Content-Type: application/json" \
-              --data "{\"type\":\"$type\",\"name\":\"$subdomain\",\"content\":\"$target\",\"ttl\":3600,\"proxied\":false}"
+          # Delete records not in subdomains/ anymore
+          echo "Checking for stale records to delete..."
+          echo "$current_records" | jq -r '.result[] | .id + " " + .name' | while read -r id name; do
+            if [[ "$name" == *".$DOMAIN" ]]; then
+              if [[ ! " ${desired_subdomains[*]} " =~ " $name " ]]; then
+                echo "Deleting stale record $name"
+                curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$id" \
+                  -H "Authorization: Bearer $CLOUDFLARE_TOKEN" \
+                  -H "Content-Type: application/json" > /dev/null
+              fi
+            fi
           done
     env:
       CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
