@@ -1,4 +1,5 @@
-<img src="https://github.com/squairdev/kittycat/raw/main/assets/kittycatbooBanner.png">
+<img src="https://github.com/squairdev/kittycat/raw/main/kittycatbooBanner.png">
+
 # kittycat.boo - Free subdomains for everyone.
 ## What is this?
 
