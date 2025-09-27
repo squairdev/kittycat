@@ -1,0 +1,9 @@
+{
+  "owner": {
+    "contact": "me@squair.xyz"
+  },
+  "info": {
+    "type": "CNAME",
+    "content": "caplayground.pages.dev"
+  }
+}
