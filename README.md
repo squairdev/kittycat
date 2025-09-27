@@ -1,6 +1,7 @@
-<img src="https://github.com/squairdev/kittycat/raw/main/kittycatbooBanner.png">
+<img src="https://github.com/squairdev/kittycat/blob/af0f47c346b84871a28711e0798c40fe1605ef9a/kittcatbooBanner.png">
 
 # kittycat.boo - Free subdomains for everyone.
+
 ## What is this?
 
 I offer free subdomains to anyone with a pre-existing website.
