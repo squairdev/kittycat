@@ -1,0 +1,9 @@
+{
+  "owner": {
+    "contact": "08_tektite.citizen@icloud.com"
+  },
+  "info": {
+    "type": "CNAME",
+    "content": "sandbox-escape.github.io"
+  }
+}
