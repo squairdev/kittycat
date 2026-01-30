@@ -1,0 +1,10 @@
+{
+  "owner": {
+    "contact": "support@eventhorizon.kittycat.boo"
+  },
+  "info": {
+    "type": "CNAME",
+    "content": "https://event-horizon-team.pages.dev/"
+  }
+}
+      
